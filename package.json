@@ -1,0 +1,15 @@
+{
+  "name": "matcha9000",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "asc --target release",
+    "build:debug": "asc --target debug",
+    "watch": "w4 watch"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.20.14"
+  },
+  "dependencies": {
+    "wasm4": "^2.5.2"
+  }
+}
