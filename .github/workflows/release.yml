@@ -1,0 +1,46 @@
+name: Publish Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - 'master'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: NPM Install
+        run: npm i
+
+      - name: Build
+        run: |
+          npm run build
+          npx w4 bundle \
+            --title "Matcha 9000" \
+            --html matcha9000.html \
+            --linux matcha9000-linux \
+            --windows matcha9000-windows.exe \
+            --mac matcha9000-macos \
+            build/cart.wasm
+
+      - name: Set Version Number
+        run: echo "VERSION=$(date +%Y.%-m.%-d)" >> $GITHUB_ENV
+
+      - name: Publish Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Release ${{ env.VERSION }}"
+          tag_name: "${{ env.VERSION }}"
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          files: |
+            matcha9000.html
+            matcha9000-linux
+            matcha9000-windows.exe
+            matcha9000-macos
