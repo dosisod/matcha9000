@@ -16,15 +16,15 @@ import {
   SCREEN_SIZE,
   TEMPO,
 } from "./constants";
+import { TICKS } from "./globals";
 
 
 //
 // GLOBALS
 //
 
-let CURRENT_LEVEL: u8 = 0;
+let CURRENT_LEVEL: u8 = 1;
 
-let TICKS: u64 = 0;
 let ANIMATION_TICKS: u64 = 0;
 
 let CPU_QUEUE: OpCode[] = [];
@@ -39,6 +39,8 @@ let IS_INT_MENU_OPEN = false;
 let INT_MENU_OP_INDEX: i32 = 0;
 let INT_MENU_X: i32 = 0;
 let INT_MENU_Y: i32 = 0;
+
+let DISK = memory.data<u8>([1]);
 
 class Player {
   x: u8;
@@ -377,6 +379,10 @@ function op_get_default_data(op: OpCodeType): u8 {
 }
 
 function run(op: OpCode): void {
+  const level = LEVELS[CURRENT_LEVEL];
+
+  if (level.update) level.update(level);
+
   const last_x = PLAYER.x;
   const last_y = PLAYER.y;
 
@@ -405,7 +411,7 @@ function run(op: OpCode): void {
   if (ACCUMULATOR < 0) ACCUMULATOR = 0;
   if (ACCUMULATOR > 15) ACCUMULATOR = 15;
 
-  const items = LEVELS[CURRENT_LEVEL].items.concat(outer_walls);
+  const items = level.items.concat(outer_walls);
 
   let did_pickup_coin = false;
 
@@ -420,7 +426,7 @@ function run(op: OpCode): void {
 
       // TODO: add "error" noise when USEing on non-useable item
       else if (op.kind == OpCodeType.USE && item.action) {
-        item.action!(LEVELS[CURRENT_LEVEL], item);
+        item.action!(level, item);
         music.use_button();
       }
 
@@ -480,6 +486,8 @@ function run_game_step(): void {
   if (can_use_exit()) {
     // TODO: play noise here
     CURRENT_LEVEL++;
+    store<u8>(DISK, CURRENT_LEVEL);
+    w4.diskw(DISK, 1);
     reset_board();
     CPU_QUEUE = [];
   }
@@ -505,6 +513,10 @@ function reset_board(): void {
 
   const level = LEVELS[CURRENT_LEVEL];
 
+  for (let i = 0; i < level.items.length; i++) {
+    level.items[i].disabled = false;
+  }
+
   if (level.setup) level.setup!(level);
 
   PLAYER.x = level.spawn.x;
@@ -519,8 +531,8 @@ function is_player_dead(): boolean {
   if (!lasers) return false;
 
   for (let i = 0; i < lasers.length; i += 2) {
-    const laser1 = LEVELS[CURRENT_LEVEL].items[i];
-    const laser2 = LEVELS[CURRENT_LEVEL].items[i + 1];
+    const laser1 = LEVELS[CURRENT_LEVEL].items[lasers[i]];
+    const laser2 = LEVELS[CURRENT_LEVEL].items[lasers[i + 1]];
 
     if (laser1.disabled) continue;
 
@@ -682,7 +694,7 @@ function draw_level(): void {
   store<u16>(w4.DRAW_COLORS, 0x10);
   draw_string(
     PLAYER.coins.toString() + "/" + LEVELS[CURRENT_LEVEL].max_coins.toString(),
-    SCREEN_SIZE - CHAR_WIDTH * 18,
+    SCREEN_SIZE - CHAR_WIDTH * 17,
     2
   );
 
@@ -882,7 +894,7 @@ function draw_board(): void {
   if (!lasers) return;
 
   for (let i = 0; i < lasers.length; i += 2) {
-    draw_laser(items[i], items[i + 1]);
+    draw_laser(items[lasers[i]], items[lasers[i + 1]]);
   }
 }
 
@@ -1037,6 +1049,8 @@ function draw_int_menu(): void {
 //
 
 export function update(): void {
+  check_force_reload_cart();
+
   draw_accumulator();
   draw_lines();
   draw_int_menu();
@@ -1081,5 +1095,16 @@ export function start(): void {
   store<u32>(w4.PALETTE, 0xfbf1c7, 2 * sizeof<u32>());
   store<u32>(w4.PALETTE, 0x689d6a, 3 * sizeof<u32>());
 
+  w4.diskr(DISK, 1);
+  CURRENT_LEVEL = load<u8>(DISK);
+
+  check_force_reload_cart();
+
   reset_board();
+}
+
+function check_force_reload_cart(): void {
+  if (load<u8>(w4.GAMEPAD1) & (w4.BUTTON_1 | w4.BUTTON_2)) {
+    CURRENT_LEVEL = 1;
+  }
 }

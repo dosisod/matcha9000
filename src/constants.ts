@@ -12,8 +12,8 @@ export const BOARD_Y_MAX: u8 = 15;
 
 export enum OpCodeType {
   STEP,
-  ROT,
   SLEEP,
+  ROT,
   USE,
   GOTO,
   ADD,
@@ -23,8 +23,8 @@ export enum OpCodeType {
 
 export const ALL_OP_CODES: OpCodeType[] = [
   OpCodeType.STEP,
-  OpCodeType.ROT,
   OpCodeType.SLEEP,
+  OpCodeType.ROT,
   OpCodeType.USE,
   OpCodeType.GOTO,
   OpCodeType.ADD,
