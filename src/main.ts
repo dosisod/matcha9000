@@ -15,6 +15,8 @@ import {
   PLAYER_SPRITE_LEN,
   SCREEN_SIZE,
   TEMPO,
+  BOARD_X_MAX,
+  BOARD_Y_MAX,
 } from "./constants";
 import { TICKS } from "./globals";
 
@@ -24,6 +26,7 @@ import { TICKS } from "./globals";
 //
 
 let CURRENT_LEVEL: u8 = 1;
+let IS_READING_INSTRUCTIONS = true;
 
 let ANIMATION_TICKS: u64 = 0;
 
@@ -33,6 +36,7 @@ let NEXT_OP_INDEX: i32 = 0;
 let ACCUMULATOR: i8 = 0;
 
 let IS_LEFT_MOUSE_PRESSED: u8 = 0;
+let IS_RIGHT_MOUSE_PRESSED: u8 = 0;
 let WAIT_TIL_NEXT_CYCLE = false;
 
 let IS_INT_MENU_OPEN = false;
@@ -40,7 +44,7 @@ let INT_MENU_OP_INDEX: i32 = 0;
 let INT_MENU_X: i32 = 0;
 let INT_MENU_Y: i32 = 0;
 
-let DISK = memory.data<u8>([1]);
+let DISK = memory.data<u8>([1, 1]);
 
 class Player {
   x: u8;
@@ -62,7 +66,14 @@ const PLAYER: Player = {
 // SPRITES
 //
 
-// TODO: figure out how to make sprites smaller
+const letter_exclamation = memory.data<u8>([
+  0b010,
+  0b010,
+  0b010,
+  0b000,
+  0b010,
+]);
+
 const letter_plus = memory.data<u8>([
   0b000,
   0b010,
@@ -167,6 +178,14 @@ const letter_a = memory.data<u8>([
   0b101,
 ]);
 
+const letter_b = memory.data<u8>([
+  0b110,
+  0b101,
+  0b111,
+  0b101,
+  0b110,
+]);
+
 const letter_c = memory.data<u8>([
   0b111,
   0b100,
@@ -191,6 +210,14 @@ const letter_f = memory.data<u8>([
   0b100,
 ]);
 
+const letter_h = memory.data<u8>([
+  0b101,
+  0b101,
+  0b111,
+  0b101,
+  0b101,
+]);
+
 const letter_i = memory.data<u8>([
   0b111,
   0b010,
@@ -207,12 +234,36 @@ const letter_k = memory.data<u8>([
   0b101,
 ]);
 
+const letter_m = memory.data<u8>([
+  0b11100,
+  0b10111,
+  0b10101,
+  0b10101,
+  0b10101,
+]);
+
+const letter_n = memory.data<u8>([
+  0b1001,
+  0b1101,
+  0b1011,
+  0b1001,
+  0b1001,
+]);
+
 const letter_p = memory.data<u8>([
   0b111,
   0b101,
   0b111,
   0b100,
   0b100,
+]);
+
+const letter_q = memory.data<u8>([
+  0b111,
+  0b101,
+  0b101,
+  0b111,
+  0b011,
 ]);
 
 const letter_u = memory.data<u8>([
@@ -245,6 +296,30 @@ const letter_v = memory.data<u8>([
   0b101,
   0b101,
   0b010,
+]);
+
+const letter_x = memory.data<u8>([
+  0b101,
+  0b101,
+  0b010,
+  0b101,
+  0b101,
+]);
+
+const letter_y = memory.data<u8>([
+  0b101,
+  0b101,
+  0b101,
+  0b010,
+  0b010,
+]);
+
+const letter_z = memory.data<u8>([
+  0b111,
+  0b001,
+  0b010,
+  0b100,
+  0b111,
 ]);
 
 const player_sprite = memory.data<u8>([
@@ -373,6 +448,7 @@ function op_get_default_data(op: OpCodeType): u8 {
     case OpCodeType.ADD:
     case OpCodeType.DEC:
     case OpCodeType.JIF:
+    case OpCodeType.ROT:
       return 1;
     default: return 0;
   }
@@ -393,12 +469,15 @@ function run(op: OpCode): void {
     if (PLAYER.rot == Direction.WEST) PLAYER.x--;
   }
   else if (op.kind == OpCodeType.ROT) {
-    PLAYER.rot <<= 1;
-    if (PLAYER.rot > Direction.WEST) PLAYER.rot = Direction.NORTH;
+    PLAYER.rot <<= op.data;
+    if (PLAYER.rot > Direction.WEST) PLAYER.rot >>= 4;
 
     music.rotate();
   }
   else if (op.kind == OpCodeType.GOTO) {
+    NEXT_OP_INDEX = op.data;
+  }
+  else if (op.kind == OpCodeType.JIF && ACCUMULATOR == 0) {
     NEXT_OP_INDEX = op.data;
   }
   else if (op.kind == OpCodeType.ADD) {
@@ -486,8 +565,7 @@ function run_game_step(): void {
   if (can_use_exit()) {
     // TODO: play noise here
     CURRENT_LEVEL++;
-    store<u8>(DISK, CURRENT_LEVEL);
-    w4.diskw(DISK, 1);
+    save_disk();
     reset_board();
     CPU_QUEUE = [];
   }
@@ -570,6 +648,16 @@ function is_left_click(x1: i32, y1: i32, x2: i32, y2: i32): boolean {
   );
 }
 
+function is_right_click(x1: i32, y1: i32, x2: i32, y2: i32): boolean {
+  const mouse = load<u8>(w4.MOUSE_BUTTONS);
+
+  return (
+    !!(mouse & w4.MOUSE_RIGHT) &&
+    !IS_RIGHT_MOUSE_PRESSED &&
+    is_mouse_in_bounds(x1, y1, x2, y2)
+  );
+}
+
 function is_mouse_in_bounds(x1: i32, y1: i32, x2: i32, y2: i32): boolean {
   const mouse_x = load<i16>(w4.MOUSE_X);
   const mouse_y = load<i16>(w4.MOUSE_Y);
@@ -587,17 +675,21 @@ function is_mouse_in_bounds(x1: i32, y1: i32, x2: i32, y2: i32): boolean {
 // DRAWING
 //
 
-function draw_letter(c: string, x: i32, y: i32): void {
+function draw_letter(c: string, x: i32, y: i32): u8 {
   return draw_char(c.charCodeAt(0) as u8, x, y);
 }
 
-function draw_char(code: u8, x: i32, y: i32): void {
+function draw_char(code: u8, x: i32, y: i32): u8 {
+  // ignore space
+  if (code == 0x20) return 3;
+
   const tmp = find_letter(code);
   const letter = tmp.letter;
   const flip_h = tmp.flip_h;
   const flip_v = tmp.flip_v;
+  const width = tmp.width;
 
-  if (!letter) return;
+  if (!letter) return 0;
 
   let flags = w4.BLIT_1BPP;
 
@@ -608,12 +700,22 @@ function draw_char(code: u8, x: i32, y: i32): void {
 
   if (flip_h) flags |= 0b100;
 
-  w4.blit(letter, x - 5, y, 8, 5, flags);
+  w4.blit(letter, x - 8 + width, y, 8, 5, flags);
+
+  return width;
 }
 
 function draw_string(str: string, x: i32, y: i32): void {
+  let wrote = 0;
+
   for (let i = 0; i < str.length; i++) {
-    draw_letter(str[i], (i * 4) + x, y);
+    if (str[i] == "\n") {
+      wrote = 0;
+      y += CHAR_HEIGHT + 1;
+      continue;
+    }
+
+    wrote += draw_letter(str[i], wrote + x, y) + 1;
   }
 }
 
@@ -621,10 +723,12 @@ class Letter {
   letter: usize;
   flip_h: boolean = false;
   flip_v: boolean = false;
+  width: u8 = 3;
 }
 
 function find_letter(c: u8): Letter {
   switch (c) {
+    case 0x21: return { letter: letter_exclamation }; // '!'
     case 0x2B: return { letter: letter_plus }; // '+'
     case 0x2D: return { letter: letter_minus }; // '-'
     case 0x2F: return { letter: letter_slash }; // '/'
@@ -645,21 +749,29 @@ function find_letter(c: u8): Letter {
     case 0x38: return { letter: letter_8 }; // '8'
     case 0x39: return { letter: letter_6, flip_h: true, flip_v: true }; // '9'
     case 0x45: return { letter: letter_3, flip_v: true } ; // 'E'
-    case 0x4C: return { letter: letter_7, flip_h: true, flip_v: true }; // 'L'
-    case 0x4C: return { letter: letter_7, flip_h: true, flip_v: true }; // 'L'
     case 0x3A: return { letter: letter_colon }; // ':'
     case 0x41: return { letter: letter_a }; // 'A'
+    case 0x42: return { letter: letter_b }; // 'B'
     case 0x43: return { letter: letter_c }; // 'C'
     case 0x44: return { letter: letter_d }; // 'D'
     case 0x46: return { letter: letter_f }; // 'F'
+    case 0x48: return { letter: letter_h }; // 'H'
     case 0x49: return { letter: letter_i }; // 'I'
     case 0x4B: return { letter: letter_k }; // 'K'
     case 0x4A: return { letter: letter_7, flip_h: true }; // 'J'
+    case 0x4C: return { letter: letter_7, flip_h: true, flip_v: true }; // 'L'
+    case 0x4D: return { letter: letter_m, width: 5 }; // 'M'
+    case 0x4E: return { letter: letter_n, width: 4 }; // 'N'
     case 0x50: return { letter: letter_p }; // 'P'
+    case 0x51: return { letter: letter_q }; // 'Q'
     case 0x52: return { letter: letter_r }; // 'R'
     case 0x54: return { letter: letter_t }; // 'T'
     case 0x55: return { letter: letter_u }; // 'U'
     case 0x56: return { letter: letter_v }; // 'V'
+    case 0x57: return { letter: letter_m, flip_h: true, flip_v: true, width: 5 }; // 'W'
+    case 0x58: return { letter: letter_x }; // 'X'
+    case 0x59: return { letter: letter_y }; // 'Y'
+    case 0x5A: return { letter: letter_z }; // 'Z'
     default: return { letter: 0 };
   }
 }
@@ -772,6 +884,19 @@ function handle_line_click(): void {
     else if (IS_LEFT_MOUSE_PRESSED && !(mouse & w4.MOUSE_LEFT)) {
       IS_LEFT_MOUSE_PRESSED = 0;
     }
+
+    if (is_right_click(
+      x,
+      starty,
+      startx + (op_code.data.toString().length * (CHAR_WIDTH + 1)) - 1,
+      starty + CHAR_HEIGHT,
+    )) {
+      CPU_QUEUE.splice(i, 1);
+      IS_RIGHT_MOUSE_PRESSED = 1;
+    }
+    else if (IS_RIGHT_MOUSE_PRESSED && !(mouse & w4.MOUSE_RIGHT)) {
+      IS_RIGHT_MOUSE_PRESSED = 0;
+    }
   }
 }
 
@@ -783,7 +908,9 @@ function handle_int_menu_click(): void {
 
   if (!is_left_click(0, 0, SCREEN_SIZE, SCREEN_SIZE)) return;
 
-  let tmp: u8 = CPU_QUEUE[INT_MENU_OP_INDEX].data;
+  const op_code = CPU_QUEUE[INT_MENU_OP_INDEX];
+
+  let tmp: u8 = op_code.data;
 
   // only process if clicking inside of menu
   if (is_left_click(
@@ -799,7 +926,7 @@ function handle_int_menu_click(): void {
         INT_MENU_X + 7,
         INT_MENU_Y - 2,
     )) {
-      tmp = CPU_QUEUE[INT_MENU_OP_INDEX].data + 1;
+      tmp = op_code.data + 1;
       IS_LEFT_MOUSE_PRESSED = 1;
     }
     // clicking the "-" button
@@ -809,7 +936,7 @@ function handle_int_menu_click(): void {
         INT_MENU_X + 7,
         INT_MENU_Y + 13,
     )) {
-      tmp = CPU_QUEUE[INT_MENU_OP_INDEX].data - 1;
+      tmp = op_code.data - 1;
       IS_LEFT_MOUSE_PRESSED = 1;
     }
   }
@@ -818,9 +945,17 @@ function handle_int_menu_click(): void {
     IS_INT_MENU_OPEN = false;
   }
 
+  let max_data_value: u8 = 20;
+
+  if (op_code.kind == OpCodeType.ROT) max_data_value = 3;
+  if (op_code.kind == OpCodeType.JIF || op_code.kind == OpCodeType.GOTO) {
+   max_data_value = CPU_QUEUE.length as u8;
+  }
+
   if (tmp <= 0) tmp = 1;
-  if (tmp > 20) tmp = 20;
-  CPU_QUEUE[INT_MENU_OP_INDEX].data = tmp;
+  if (tmp > max_data_value) tmp = max_data_value;
+
+  op_code.data = tmp;
 }
 
 function draw_op_codes(): void {
@@ -1000,7 +1135,7 @@ function draw_accumulator(): void {
   store<u16>(w4.DRAW_COLORS, 0x02);
   w4.rect(0, 0, BOARD_START_X, 9);
 
-  if (CURRENT_LEVEL == 0) {
+  if (CURRENT_LEVEL >= 6) {
     store<u16>(w4.DRAW_COLORS, 0x10);
     draw_string("  ACC: " + ACCUMULATOR.toString(), 5, 2);
   }
@@ -1043,6 +1178,58 @@ function draw_int_menu(): void {
   draw_string("-", INT_MENU_X + 2, INT_MENU_Y + CHAR_HEIGHT + 2);
 }
 
+function show_instructions(): void {
+  // TODO: dedupe this code
+
+  store<u16>(w4.DRAW_COLORS, 0x10);
+  w4.rect(0, 0, SCREEN_SIZE, SCREEN_SIZE);
+
+  store<u16>(w4.DRAW_COLORS, 0x02);
+  w4.line(0, 0, SCREEN_SIZE - 1, 0);
+  w4.line(0, 0, 0, SCREEN_SIZE - 1);
+
+  store<u16>(w4.DRAW_COLORS, 0x04);
+  w4.line(SCREEN_SIZE - 1, SCREEN_SIZE - 1, 1, SCREEN_SIZE - 1);
+  w4.line(SCREEN_SIZE - 1, SCREEN_SIZE - 1, SCREEN_SIZE - 1, 1);
+
+
+  store<u16>(w4.DRAW_COLORS, 0x40);
+  draw_string("MATCHA 9000", 3, 3);
+
+  store<u16>(w4.DRAW_COLORS, 0x20);
+  draw_string(
+    "- LEFT CLICK ON AN OP CODE TO ADD IT\n\n" +
+    "- RIGHT CLICK TO DELETE IT\n\n" +
+    "- PRESS R TO RESTART CURRENT LEVEL\n\n\n\n" +
+    "         CLICK NEXT TO START",
+    3,
+    17
+  );
+
+  store<u16>(w4.DRAW_COLORS, 0x33);
+  w4.rect(
+    SCREEN_SIZE - 24,
+    SCREEN_SIZE - CHAR_HEIGHT - 8,
+    20,
+    CHAR_HEIGHT + 4
+  );
+
+  if (is_left_click(
+    SCREEN_SIZE - 24,
+    SCREEN_SIZE - CHAR_HEIGHT - 8,
+    SCREEN_SIZE - 4,
+    SCREEN_SIZE - CHAR_HEIGHT + 2
+  )) {
+    IS_READING_INSTRUCTIONS = false;
+    IS_LEFT_MOUSE_PRESSED = 1;
+    save_disk();
+    return;
+  }
+
+  store<u16>(w4.DRAW_COLORS, 0x10);
+  draw_string("NEXT", SCREEN_SIZE - 22, SCREEN_SIZE - CHAR_HEIGHT - 6);
+}
+
 
 //
 // UPDATE/SETUP
@@ -1050,6 +1237,11 @@ function draw_int_menu(): void {
 
 export function update(): void {
   check_force_reload_cart();
+
+  if (IS_READING_INSTRUCTIONS) {
+    show_instructions();
+    return;
+  }
 
   draw_accumulator();
   draw_lines();
@@ -1095,9 +1287,7 @@ export function start(): void {
   store<u32>(w4.PALETTE, 0xfbf1c7, 2 * sizeof<u32>());
   store<u32>(w4.PALETTE, 0x689d6a, 3 * sizeof<u32>());
 
-  w4.diskr(DISK, 1);
-  CURRENT_LEVEL = load<u8>(DISK);
-
+  load_disk();
   check_force_reload_cart();
 
   reset_board();
@@ -1106,5 +1296,25 @@ export function start(): void {
 function check_force_reload_cart(): void {
   if (load<u8>(w4.GAMEPAD1) & (w4.BUTTON_1 | w4.BUTTON_2)) {
     CURRENT_LEVEL = 1;
+    IS_READING_INSTRUCTIONS = true;
+
+    save_disk();
   }
+}
+
+
+//
+// DISK
+//
+
+function save_disk(): void {
+  store<u8>(DISK, CURRENT_LEVEL);
+  store<u8>(DISK + 1, u8(IS_READING_INSTRUCTIONS));
+  w4.diskw(DISK, 2);
+}
+
+function load_disk(): void {
+  w4.diskr(DISK, 2);
+  CURRENT_LEVEL = load<u8>(DISK);
+  IS_READING_INSTRUCTIONS = load<u8>(DISK + 1) == 1;
 }

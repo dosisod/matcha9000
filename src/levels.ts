@@ -187,6 +187,105 @@ const LEVEL_5: Level = {
   ],
 };
 
+const LEVEL_6: Level = {
+  spawn: { x: 9, y: 3, rot: Direction.SOUTH },
+  exit: { x: 3, y: 3 },
+  items: [
+    { kind: ItemType.LASER, pos: { x: 1, y: 6, rot: Direction.EAST } },
+    { kind: ItemType.LASER, pos: { x: 5, y: 6, rot: Direction.WEST } },
+
+    { kind: ItemType.WALL, pos: { x: 6, y: 1 } },
+    { kind: ItemType.WALL, pos: { x: 6, y: 2 } },
+    { kind: ItemType.WALL, pos: { x: 6, y: 3 } },
+    { kind: ItemType.WALL, pos: { x: 6, y: 4 } },
+    { kind: ItemType.WALL, pos: { x: 6, y: 5 } },
+    { kind: ItemType.WALL, pos: { x: 6, y: 6 } },
+
+    { kind: ItemType.WALL, pos: { x: 6, y: 9 } },
+    { kind: ItemType.BUTTON, pos: { x: 6, y: 8, rot: Direction.NORTH } },
+    { kind: ItemType.BUTTON, pos: { x: 5, y: 9, rot: Direction.WEST } },
+    {
+      kind: ItemType.BUTTON,
+      pos: { x: 6, y: 10, rot: Direction.SOUTH },
+      action: (lvl, item) => {
+        lvl.items[0].disabled = true;
+      }
+    },
+    { kind: ItemType.BUTTON, pos: { x: 7, y: 9, rot: Direction.EAST } },
+  ],
+  lasers: [
+    0, 1,
+  ],
+};
+
+const LEVEL_7: Level = {
+  spawn: { x: 2, y: 3, rot: Direction.SOUTH },
+  exit: { x: 10, y: 9 },
+  items: [
+    { kind: ItemType.LASER, pos: { x: 4, y: 1, rot: Direction.SOUTH } },
+    { kind: ItemType.LASER, pos: { x: 4, y: 14, rot: Direction.NORTH } },
+    { kind: ItemType.LASER, pos: { x: 6, y: 1, rot: Direction.SOUTH } },
+    { kind: ItemType.LASER, pos: { x: 6, y: 14, rot: Direction.NORTH } },
+    { kind: ItemType.LASER, pos: { x: 8, y: 1, rot: Direction.SOUTH } },
+    { kind: ItemType.LASER, pos: { x: 8, y: 14, rot: Direction.NORTH } },
+
+    { kind: ItemType.BUTTON, pos: { x: 1, y: 5, rot: Direction.EAST },
+      action: (lvl, item) => lvl.items[0].disabled = true
+    },
+    { kind: ItemType.BUTTON, pos: { x: 1, y: 7, rot: Direction.EAST },
+      action: (lvl, item) => lvl.items[2].disabled = true
+    },
+    { kind: ItemType.BUTTON, pos: { x: 1, y: 9, rot: Direction.EAST },
+      action: (lvl, item) => lvl.items[4].disabled = true
+    },
+  ],
+  lasers: [
+    0, 1,
+    2, 3,
+    4, 5,
+  ],
+};
+
+const LEVEL_8: Level = {
+  spawn: { x: 10, y: 11, rot: Direction.NORTH },
+  exit: { x: 8, y: 11 },
+  max_coins: 3,
+  items: [
+    { kind: ItemType.LASER, pos: { x: 7, y: 8, rot: Direction.EAST } },
+    { kind: ItemType.LASER, pos: { x: 12, y: 8, rot: Direction.WEST } },
+
+    { kind: ItemType.LASER, pos: { x: 6, y: 1, rot: Direction.SOUTH } },
+    { kind: ItemType.LASER, pos: { x: 6, y: 7, rot: Direction.NORTH } },
+
+    { kind: ItemType.LASER, pos: { x: 1, y: 8, rot: Direction.EAST } },
+    { kind: ItemType.LASER, pos: { x: 5, y: 8, rot: Direction.WEST } },
+
+    { kind: ItemType.LASER, pos: { x: 6, y: 9, rot: Direction.SOUTH } },
+    { kind: ItemType.LASER, pos: { x: 6, y: 14, rot: Direction.NORTH } },
+
+    { kind: ItemType.WALL, pos: { x: 6, y: 8 } },
+
+    { kind: ItemType.COIN, pos: { x: 10, y: 5 } },
+    { kind: ItemType.COIN, pos: { x: 2, y: 5 } },
+    { kind: ItemType.COIN, pos: { x: 2, y: 11 } },
+  ],
+  lasers: [
+    0, 1,
+    2, 3,
+    4, 5,
+    6, 7,
+  ],
+  setup: (lvl) => lvl.items[0].disabled = true,
+  update: (lvl) => {
+    const tmp = TICKS % (TEMPO * 32) / TEMPO;
+
+    lvl.items[0].disabled = tmp < 8;
+    lvl.items[2].disabled = tmp >= 8 && tmp < 16;
+    lvl.items[4].disabled = tmp >= 16 && tmp < 24;
+    lvl.items[6].disabled = tmp >= 24;
+  }
+};
+
 export const LEVELS: Level[] = [
   LEVEL_DEV,
   LEVEL_1,
@@ -194,4 +293,7 @@ export const LEVELS: Level[] = [
   LEVEL_3,
   LEVEL_4,
   LEVEL_5,
+  LEVEL_6,
+  LEVEL_7,
+  LEVEL_8,
 ];
