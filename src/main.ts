@@ -15,8 +15,6 @@ import {
   PLAYER_SPRITE_LEN,
   SCREEN_SIZE,
   TEMPO,
-  BOARD_X_MAX,
-  BOARD_Y_MAX,
 } from "./constants";
 import { TICKS } from "./globals";
 
@@ -27,6 +25,7 @@ import { TICKS } from "./globals";
 
 let CURRENT_LEVEL: u8 = 1;
 let IS_READING_INSTRUCTIONS = true;
+let IS_IN_ENDGAME_CYCLE = false;
 
 let ANIMATION_TICKS: u64 = 0;
 
@@ -160,6 +159,14 @@ const letter_8 = memory.data<u8>([
   0b111,
   0b101,
   0b111,
+]);
+
+const letter_question = memory.data<u8>([
+  0b111,
+  0b001,
+  0b011,
+  0b000,
+  0b010,
 ]);
 
 const letter_colon = memory.data<u8>([
@@ -455,9 +462,11 @@ function op_get_default_data(op: OpCodeType): u8 {
 }
 
 function run(op: OpCode): void {
-  const level = LEVELS[CURRENT_LEVEL];
+  if (CURRENT_LEVEL < (LEVELS.length as u8)) {
+    const level = LEVELS[CURRENT_LEVEL];
 
-  if (level.update) level.update(level);
+    if (level.update) level.update(level);
+  }
 
   const last_x = PLAYER.x;
   const last_y = PLAYER.y;
@@ -490,7 +499,12 @@ function run(op: OpCode): void {
   if (ACCUMULATOR < 0) ACCUMULATOR = 0;
   if (ACCUMULATOR > 15) ACCUMULATOR = 15;
 
-  const items = level.items.concat(outer_walls);
+  if (CURRENT_LEVEL >= (LEVELS.length as u8)) {
+    if (op.kind == OpCodeType.STEP) music.step();
+    return;
+  }
+
+  const items = LEVELS[CURRENT_LEVEL].items.concat(outer_walls);
 
   let did_pickup_coin = false;
 
@@ -505,7 +519,7 @@ function run(op: OpCode): void {
 
       // TODO: add "error" noise when USEing on non-useable item
       else if (op.kind == OpCodeType.USE && item.action) {
-        item.action!(level, item);
+        item.action!(LEVELS[CURRENT_LEVEL], item);
         music.use_button();
       }
 
@@ -562,12 +576,13 @@ function run_game_step(): void {
     CURRENT_OP_INDEX++;
   }
 
-  if (can_use_exit()) {
+  if (!IS_IN_ENDGAME_CYCLE && can_use_exit()) {
     // TODO: play noise here
     CURRENT_LEVEL++;
     save_disk();
     reset_board();
     CPU_QUEUE = [];
+    IS_INT_MENU_OPEN = false;
   }
 }
 
@@ -584,6 +599,8 @@ function is_exit_open(): boolean {
 }
 
 function reset_board(): void {
+  if (CURRENT_LEVEL >= (LEVELS.length as u8)) return;
+
   TICKS = 0;
   CURRENT_OP_INDEX = 0;
   NEXT_OP_INDEX = 0;
@@ -604,6 +621,8 @@ function reset_board(): void {
 }
 
 function is_player_dead(): boolean {
+  if (CURRENT_LEVEL >= (LEVELS.length as u8)) return false;
+
   const lasers = LEVELS[CURRENT_LEVEL].lasers;
 
   if (!lasers) return false;
@@ -695,7 +714,7 @@ function draw_char(code: u8, x: i32, y: i32): u8 {
 
   if (flip_v) {
     flags |= 0b10;
-    x += 5;
+    x += 8 - width;
   }
 
   if (flip_h) flags |= 0b100;
@@ -748,6 +767,7 @@ function find_letter(c: u8): Letter {
     case 0x37: return { letter: letter_7 }; // '7'
     case 0x38: return { letter: letter_8 }; // '8'
     case 0x39: return { letter: letter_6, flip_h: true, flip_v: true }; // '9'
+    case 0x3F: return { letter: letter_question }; // '?'
     case 0x45: return { letter: letter_3, flip_v: true } ; // 'E'
     case 0x3A: return { letter: letter_colon }; // ':'
     case 0x41: return { letter: letter_a }; // 'A'
@@ -794,8 +814,6 @@ function draw_outlines(): void {
 
   store<u32>(w4.DRAW_COLORS, 0x04);
   w4.blit(logo_sprite, BOARD_START_X + 1, 1, 48, 7, w4.BLIT_1BPP,);
-
-  draw_level();
 }
 
 function draw_level(): void {
@@ -1199,6 +1217,8 @@ function show_instructions(): void {
   draw_string(
     "- LEFT CLICK ON AN OP CODE TO ADD IT\n\n" +
     "- RIGHT CLICK TO DELETE IT\n\n" +
+    "- CLICK ON ARGUMENT TO CHANGE IT\n\n" +
+    "- PRESS Z+X TO FORCE RESTART CART\n\n" +
     "- PRESS R TO RESTART CURRENT LEVEL\n\n\n\n" +
     "         CLICK NEXT TO START",
     3,
@@ -1229,7 +1249,6 @@ function show_instructions(): void {
   draw_string("NEXT", SCREEN_SIZE - 22, SCREEN_SIZE - CHAR_HEIGHT - 6);
 }
 
-
 //
 // UPDATE/SETUP
 //
@@ -1245,9 +1264,75 @@ export function update(): void {
   draw_accumulator();
   draw_lines();
   draw_int_menu();
+
+  if (CURRENT_LEVEL >= (LEVELS.length as u8)) {
+    if (!IS_IN_ENDGAME_CYCLE) {
+      IS_IN_ENDGAME_CYCLE = true;
+      CURRENT_OP_INDEX = 0;
+      CPU_QUEUE = [
+        { kind: OpCodeType.ADD, data: 9 },
+        { kind: OpCodeType.DEC, data: 1 },
+        { kind: OpCodeType.STEP },
+        { kind: OpCodeType.JIF, data: 6 },
+        { kind: OpCodeType.GOTO, data: 2 },
+        { kind: OpCodeType.ROT, data: 2 },
+        { kind: OpCodeType.GOTO, data: 1 },
+      ];
+
+      PLAYER.x = 2;
+      PLAYER.y = 7;
+      PLAYER.rot = Direction.EAST;
+    }
+
+    store<u16>(w4.DRAW_COLORS, 0x40);
+    draw_string("YOU WIN!!!", BOARD_START_X + 35, BOARD_START_Y + 40);
+
+    store<u32>(w4.DRAW_COLORS, 0x1234);
+
+    for (let i = 0; i < outer_walls.length; i++) {
+      draw_item(outer_walls[i]);
+    }
+
+    store<u16>(w4.DRAW_COLORS, 0x33);
+    w4.rect(SCREEN_SIZE - 63, 1, 62, 7);
+
+    store<u16>(w4.DRAW_COLORS, 0x10);
+    draw_string("0/0", SCREEN_SIZE - CHAR_WIDTH * 17, 2);
+
+    store<u16>(w4.DRAW_COLORS, 0x10);
+    draw_string("LEVEL", SCREEN_SIZE - CHAR_WIDTH * 9, 2);
+    draw_string("?", SCREEN_SIZE - CHAR_WIDTH - 2, 2);
+
+    draw_op_codes();
+    draw_outlines()
+
+    store<u16>(w4.DRAW_COLORS, 0x30);
+    draw_player();
+
+    TICKS++;
+    ANIMATION_TICKS++;
+
+    if (TICKS % TEMPO != 0) return;
+
+    if (WAIT_TIL_NEXT_CYCLE) {
+      WAIT_TIL_NEXT_CYCLE = false;
+      return;
+    }
+
+    if (NEXT_OP_INDEX) {
+      CURRENT_OP_INDEX = NEXT_OP_INDEX - 1;
+      NEXT_OP_INDEX = 0;
+    }
+
+    run_game_step();
+
+    return;
+  }
+
   draw_board();
   draw_op_codes();
   draw_outlines()
+  draw_level();
 
   if (IS_INT_MENU_OPEN) {
     handle_int_menu_click();
@@ -1290,12 +1375,14 @@ export function start(): void {
   check_force_reload_cart();
 
   reset_board();
+  CPU_QUEUE = [];
 }
 
 function check_force_reload_cart(): void {
   if (load<u8>(w4.GAMEPAD1) & (w4.BUTTON_1 | w4.BUTTON_2)) {
     CURRENT_LEVEL = 1;
     IS_READING_INSTRUCTIONS = true;
+    CPU_QUEUE = [];
 
     save_disk();
   }

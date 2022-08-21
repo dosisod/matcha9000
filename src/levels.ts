@@ -53,40 +53,12 @@ class Level {
   lasers: u8[] | null = null; // EAST/SOUTH laser must be first!
   setup: ((lvl: Level) => void) | null = null;
   update: ((lvl: Level) => void) | null = null;
-  data: u8[] | null = null;
 };
 
 const LEVEL_DEV: Level = {
   spawn: { x: 2, y: 5, rot: Direction.EAST },
   exit: { x: 9, y: 7 },
-  max_coins: 3,
-  items: [
-    { kind: ItemType.LASER, pos: { x: 1, y: 7, rot: Direction.EAST } },
-    { kind: ItemType.LASER, pos: { x: 4, y: 7, rot: Direction.WEST } },
-    { kind: ItemType.LASER, pos: { x: 7, y: 1, rot: Direction.SOUTH } },
-    { kind: ItemType.LASER, pos: { x: 7, y: 4, rot: Direction.NORTH} },
-    { kind: ItemType.WALL, pos: { x: 5, y: 7 } },
-    { kind: ItemType.COIN, pos: { x: 6, y: 5 } },
-    { kind: ItemType.COIN, pos: { x: 7, y: 5 } },
-    { kind: ItemType.COIN, pos: { x: 8, y: 5 } },
-    { kind: ItemType.COIN, pos: { x: 6, y: 6 } },
-    { kind: ItemType.COIN, pos: { x: 7, y: 6 } },
-    { kind: ItemType.COIN, pos: { x: 8, y: 6 } },
-    { kind: ItemType.COIN, pos: { x: 6, y: 7 } },
-    { kind: ItemType.COIN, pos: { x: 7, y: 7 } },
-    { kind: ItemType.COIN, pos: { x: 8, y: 7 } },
-    {
-      kind: ItemType.BUTTON,
-      pos: { x: 1, y: 5, rot: Direction.EAST },
-      action: (lvl, item) => {
-        lvl.items[0].disabled = !lvl.items[0].disabled;
-      }
-    },
-  ],
-  lasers: [
-    0, 1,
-    2, 3,
-  ]
+  max_coins: 0,
 };
 
 const LEVEL_1: Level = {
@@ -286,6 +258,46 @@ const LEVEL_8: Level = {
   }
 };
 
+let LEVEL_9_BITMASK = 0;
+
+const LEVEL_9: Level = {
+  spawn: { x: 2, y: 7, rot: Direction.EAST },
+  exit: { x: 11, y: 7 },
+  items: [
+    { kind: ItemType.LASER, pos: { x: 9, y: 1, rot: Direction.SOUTH } },
+    { kind: ItemType.LASER, pos: { x: 9, y: 14, rot: Direction.NORTH } },
+
+    { kind: ItemType.WALL, pos: { x: 4, y: 6 } },
+    { kind: ItemType.WALL, pos: { x: 5, y: 6 } },
+    { kind: ItemType.WALL, pos: { x: 6, y: 6 } },
+    { kind: ItemType.WALL, pos: { x: 7, y: 6 } },
+
+    { kind: ItemType.BUTTON, pos: { x: 4, y: 7, rot: Direction.SOUTH },
+      action: (lvl, item) => {
+        LEVEL_9_BITMASK |= 0b1000;
+        lvl.update!(lvl);
+      }
+    },
+    { kind: ItemType.BUTTON, pos: { x: 5, y: 7, rot: Direction.SOUTH } },
+    { kind: ItemType.BUTTON, pos: { x: 6, y: 7, rot: Direction.SOUTH } },
+    { kind: ItemType.BUTTON, pos: { x: 7, y: 7, rot: Direction.SOUTH },
+      action: (lvl, item) => {
+        LEVEL_9_BITMASK |= 0b0001;
+        lvl.update!(lvl);
+      }
+    },
+  ],
+  lasers: [
+    0, 1
+  ],
+  setup: (lvl) => LEVEL_9_BITMASK = 0,
+  update: (lvl) => {
+    if (LEVEL_9_BITMASK == 0b1001) {
+      lvl.items[0].disabled = true;
+    }
+  }
+};
+
 export const LEVELS: Level[] = [
   LEVEL_DEV,
   LEVEL_1,
@@ -296,4 +308,5 @@ export const LEVELS: Level[] = [
   LEVEL_6,
   LEVEL_7,
   LEVEL_8,
+  LEVEL_9,
 ];
