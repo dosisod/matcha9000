@@ -2,8 +2,8 @@
   "name": "matcha9000",
   "version": "1.0.0",
   "scripts": {
-    "build": "asc --target release",
-    "build:debug": "asc --target debug",
+    "build": "asc --target release --disable=bulk-memory",
+    "build:debug": "asc --target debug --disable=bulk-memory",
     "watch": "w4 watch"
   },
   "devDependencies": {

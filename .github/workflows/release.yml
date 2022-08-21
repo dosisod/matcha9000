@@ -30,7 +30,7 @@ jobs:
             build/cart.wasm
 
       - name: Set Version Number
-        run: echo "VERSION=$(date +%Y.%-m.%-d)" >> $GITHUB_ENV
+        run: sed -nE 's/version.=."(.*)"/VERSION=\1/p' wapm.toml >> $GITHUB_ENV
 
       - name: Publish Release Assets
         uses: softprops/action-gh-release@v1
@@ -44,3 +44,12 @@ jobs:
             matcha9000-linux
             matcha9000-windows.exe
             matcha9000-macos
+
+      - name: Publish to WAPM
+        run: |
+          curl https://get.wasmer.io -sSfL | sh
+          source /home/runner/.wasmer/wasmer.sh
+          wapm --version 
+          wapm login "${{ secrets.WAPM_REGISTRY_TOKEN }}"
+          cp build/cart.wasm matcha9000.wasm
+          wapm publish | true

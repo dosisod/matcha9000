@@ -793,7 +793,6 @@ function draw_outlines(): void {
   w4.line(BOARD_START_X, 0, BOARD_START_X, SCREEN_SIZE - 2);
 
   store<u32>(w4.DRAW_COLORS, 0x04);
-  w4.rect(97, 1, 100, 7);
   w4.blit(logo_sprite, BOARD_START_X + 1, 1, 48, 7, w4.BLIT_1BPP,);
 
   draw_level();
@@ -801,7 +800,7 @@ function draw_outlines(): void {
 
 function draw_level(): void {
   store<u16>(w4.DRAW_COLORS, 0x33);
-  w4.rect(SCREEN_SIZE - 57, 1, 56, 7);
+  w4.rect(SCREEN_SIZE - 63, 1, 62, 7);
 
   store<u16>(w4.DRAW_COLORS, 0x10);
   draw_string(

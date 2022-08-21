@@ -1,37 +1,35 @@
 # Matcha9000
 
-A game written in AssemblyScript for the [WASM-4](https://wasm4.org) fantasy console.
+A puzzle game for programmers.
+
+![Screenshot](https://raw.githubusercontent.com/dosisod/matcha9000/testing/img/demo.png)
+
+## How To Play
+
+You move your player around the board using op codes. Click on an op code in the bottom
+right, and it will be added to the queue on the left. Different op codes are unlocked at
+different levels:
+
+| Op Code    | Level | Description |
+|------------|-------|-------------|
+| `STEP`     | 1     | Move one square forwards |
+| `SLEEP`    | 2     | Do nothing |
+| `ROT` `N`  | 3     | Make `N` clock-wise rotations |
+| `USE`      | 4     | Use a button |
+| `GOTO` `N` | 5     | Goto line `N` |
+| `ADD` `N`  | 6     | Add `N` to the accumulator |
+| `DEC` `N`  | 7     | Subtract `N` from the accumulator |
+| `JIF` `N`  | 8     | Jump to line `N` if the accumulator is zero |
+
+Clicking on the argument (`N`) for an op code allows you to change its value.
 
 ## Running
 
 Go to to the [releases](https://github.com/dosisod/matcha9000/releases) page to get the most
-recent build, available for standalone HTML and native Linux/Windows/MacOS binaries.
+recent build. They are available in standalone HTML and native Linux/Windows/MacOS binaries.
 
-## Building
+Alternatively, you can install from [WAPM](https://wapm.io/):
 
-First setup the project by running:
-
-```shell
-npm install
 ```
-
-Build the cart by running:
-
-```shell
-npm run build
+$ wapm install dosisod/matcha9000
 ```
-
-Then run it with:
-
-```shell
-w4 run build/cart.wasm
-```
-
-For more info about setting up WASM-4, see the [quickstart guide](https://wasm4.org/docs/getting-started/setup?code-lang=assemblyscript#quickstart).
-
-## Links
-
-- [Documentation](https://wasm4.org/docs): Learn more about WASM-4.
-- [Snake Tutorial](https://wasm4.org/docs/tutorials/snake/goal): Learn how to build a complete game
-  with a step-by-step tutorial.
-- [GitHub](https://github.com/aduros/wasm4): Submit an issue or PR. Contributions are welcome!
